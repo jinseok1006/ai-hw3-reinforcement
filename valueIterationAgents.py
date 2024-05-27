@@ -110,12 +110,14 @@ class ValueIterationAgent(ValueEstimationAgent):
         stateProbs = mdp.getTransitionStatesAndProbs(state, action)
 
         value = sum(
-            prob
-            * (
-                mdp.getReward(state, action, nextState)
-                + self.discount * self.getValue(nextState)
-            )
-            for (nextState, prob) in stateProbs
+            [
+                prob
+                * (
+                    mdp.getReward(state, action, nextState)
+                    + self.discount * self.getValue(nextState)
+                )
+                for (nextState, prob) in stateProbs
+            ]
         )
 
         return value
@@ -133,7 +135,7 @@ class ValueIterationAgent(ValueEstimationAgent):
         # policy extraction..?
         from gridworld import Gridworld
 
-        def getQValue(pair):
+        def pickQValue(pair):
             qValue, action = pair
             return qValue
 
@@ -147,7 +149,7 @@ class ValueIterationAgent(ValueEstimationAgent):
 
         (qValue, action) = max(
             [(self.getQValue(state, action), action) for action in actions],
-            key=lambda pair: getQValue(pair),
+            key=pickQValue,
         )
         return action
 
@@ -182,3 +184,68 @@ class PrioritizedSweepingValueIterationAgent(ValueIterationAgent):
 
     def runValueIteration(self):
         "*** YOUR CODE HERE ***"
+        from gridworld import Gridworld
+
+        mdp: Gridworld = self.mdp
+        priorityQueue = util.PriorityQueue()
+        states = mdp.getStates()
+
+        # # super().runValueIteration()
+
+        def flatten(lst):
+            return [item for sublist in lst for item in sublist]
+
+        # getPrecessor
+        predecessors = {}
+        for state in states:
+            if mdp.isTerminal(state):
+                continue
+
+            successorsPerAction = [
+                mdp.getTransitionStatesAndProbs(state, action)
+                for action in mdp.getPossibleActions(state)
+            ]
+
+            successors = flatten(successorsPerAction)
+
+            for successor, prob in successors:
+                if successor in predecessors:
+                    predecessors[successor].add(state)
+                else:
+                    predecessors[successor] = set({state})
+
+        for state in states:
+            currentValue = self.getValue(state)
+            actions = mdp.getPossibleActions(state)
+            if not actions:
+                continue
+            highestQValue = max([self.getQValue(state, action) for action in actions])
+            diff = abs(currentValue - highestQValue)
+            priorityQueue.update(state, -diff)
+
+        for iter in range(self.iterations):
+            if priorityQueue.isEmpty():
+                break
+
+            currentState = priorityQueue.pop()
+            if not mdp.isTerminal(currentState):
+                values = [
+                    self.getQValue(currentState, action)
+                    for action in mdp.getPossibleActions(currentState)
+                ]
+                self.values[currentState] = max(values)
+
+            for predecessor in predecessors[currentState]:
+                if mdp.isTerminal(predecessor):
+                    continue
+                predecessorValue = self.getValue(predecessor)
+                actions = mdp.getPossibleActions(predecessor)
+                # if not actions:
+                #     continue
+                highestPredecessorQValue = max(
+                    [self.getQValue(predecessor, action) for action in actions]
+                )
+                diff = abs(predecessorValue - highestPredecessorQValue)
+
+                if diff > self.theta:
+                    priorityQueue.update(predecessor, -diff)

@@ -65,14 +65,19 @@ class QLearningAgent(ReinforcementAgent):
         terminal state, you should return a value of 0.0.
         """
         "*** YOUR CODE HERE ***"
-        values = [
-            self.getQValue(state, action) for action in self.getLegalActions(state)
-        ]
+        qValue = float("-inf")
 
-        if not values:
+        # 왜 리스트컴프리헨션도 통제할까?
+        legalActions = self.getLegalActions(state)
+
+        if not legalActions:
             return 0
 
-        return max(values)
+        for action in legalActions:
+            currentQvalue = self.getQValue(state, action)
+            qValue = max(qValue, currentQvalue)
+
+        return qValue
 
         # util.raiseNotDefined()
 
@@ -118,14 +123,16 @@ class QLearningAgent(ReinforcementAgent):
         action = None
         "*** YOUR CODE HERE ***"
         # util.raiseNotDefined()
-        # if util.flipCoin(self.epsilon):
-        #     return random.choice(legalActions)
-        # action = self.getPolicy(state)
-        action = (
-            random.choice(legalActions)
-            if util.flipCoin(self.epsilon)
-            else self.getPolicy(state)
-        )
+        if util.flipCoin(self.epsilon):
+            return random.choice(legalActions)
+        action = self.getPolicy(state)
+
+        # if random.random() < self.epsilon:
+        #     legalActionIndex=random.randint(0, len(legalActions)-1)
+        #     return legalActions[legalActionIndex]
+        # else:
+        #     return self.getPolicy(state)
+
         return action
 
     def update(self, state, action, nextState, reward):
@@ -214,14 +221,41 @@ class ApproximateQAgent(PacmanQAgent):
         where * is the dotProduct operator
         """
         "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
+        # util.raiseNotDefined()
+        # identityExtractor=IdentityExtractor()
+
+        def dotProduct(features, weights):
+            return sum(features[key] * weights[key] for key in features)
+
+        weights = self.getWeights()
+        features = self.featExtractor.getFeatures(state, action)
+
+        dp = dotProduct(features, weights)
+        # print(dp)
+
+        return dp
 
     def update(self, state, action, nextState, reward):
         """
         Should update your weights based on transition
         """
         "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
+        # util.raiseNotDefined()
+        # 이거 그냥 식 카피하면 되잖아
+        weights = self.getWeights()
+        features = self.featExtractor.getFeatures(state, action)
+
+        difference = (
+            reward
+            + self.discount * self.getValue(nextState)
+            - self.getQValue(state, action)
+        )
+
+        for key in features:
+            feature = features[key]
+            oldWeight = weights[key]
+            newWeight = oldWeight + (self.alpha * difference * feature)
+            weights[key] = newWeight
 
     def final(self, state):
         "Called at the end of each game."
